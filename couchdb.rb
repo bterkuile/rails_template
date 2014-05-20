@@ -51,44 +51,57 @@ end
 
 if ember?
   application "config.handlebars.templates_root = %w[app/templates]"
-  inside "app/assets/javascripts" do
-    run "mkdir app"
-    %w[views models templates modifications].each do |ember_dir|
-      run "mkdir app/#{ember_dir}"
+  inside "app/assets" do
+    inside 'javascripts' do
+      run "mkdir app"
+      %w[views models templates modifications].each do |ember_dir|
+        run "mkdir app/#{ember_dir}"
+      end
+
+      file "app/store.js.coffee", <<-CODE
+        App.ApplicationSerializer = DS.ActiveModelSerializer
+
+        App.CustomAdapter = DS.RESTAdapter.extend
+          # user underscored paths
+          pathForType: (type)->
+            decamelized = Ember.String.decamelize(type)
+            Ember.String.pluralize(decamelized)
+
+        App.Store = DS.Store.extend
+          adapter: App.CustomAdapter
+      CODE
+
+      file "app/modifications/model_modifications.js.coffee", <<-CODE
+        DS.Model.reopen
+          created_at: DS.attr('date')
+          updated_at: DS.attr('date')
+          eraseRecord: ->
+            @clearRelationships()
+            @transitionTo('deleted.saved')
+      CODE
+
+      file "app/application.js.coffee", <<-CODE
+        #= require jquery
+        #= require jquery_ujs
+        #= require_self
+        #= require handlebars
+        #= require ember
+        #= require ember-data
+        #= require_directory ./modifications
+        #= require_tree .
+        @EmberENV = {FEATURES: {'query-params-new': true}}
+      CODE
     end
+  end
 
-    file "app/store.js.coffee", <<-CODE
-      App.ApplicationSerializer = DS.ActiveModelSerializer
-
-      App.CustomAdapter = DS.RESTAdapter.extend
-        # user underscored paths
-        pathForType: (type)->
-          decamelized = Ember.String.decamelize(type)
-          Ember.String.pluralize(decamelized)
-
-      App.Store = DS.Store.extend
-        adapter: App.CustomAdapter
+  inside "stylesheets" do
+    remove_file "application.css"
+    file "application.css.sass", <<-CODE
+      //= require_directory .
     CODE
+    mkdir "app"
+    file "app/application.css.sass", <<-CODE
 
-    file "app/modifications/model_modifications.js.coffee", <<-CODE
-      DS.Model.reopen
-        created_at: DS.attr('date')
-        updated_at: DS.attr('date')
-        eraseRecord: ->
-          @clearRelationships()
-          @transitionTo('deleted.saved')
-    CODE
-
-    file "app/application.js.coffee", <<-CODE
-      #= require jquery
-      #= require jquery_ujs
-      #= require_self
-      #= require handlebars
-      #= require ember
-      #= require ember-data
-      #= require_directory ./modifications
-      #= require_tree .
-      @EmberENV = {FEATURES: {'query-params-new': true}}
     CODE
   end
 end
